@@ -13,7 +13,7 @@ from sklearn.preprocessing import StandardScaler
 import schedule
 import time
 
-
+# test
 def check_flights():
 	url = "https://www.google.com/flights/explore/#explore;f=JFK,EWR,LGA;t=HND,NRT,TPE,HKG,KIX;s=1;li=8;lx=12;d=2016-04-01"
 	driver = webdriver.PhantomJS()

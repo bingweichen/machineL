@@ -9,3 +9,6 @@ schedule==0.5.0
 selenium==3.141.0
 scikit_learn==0.20.1
 twilio==6.21.0
+matplotlib
+patsy
+statsmodels
