@@ -7,6 +7,7 @@
 @time: 2018/12/13 上午11:05
 @desc:
 
+download sp2000 from: http://finance.yahoo.com/q/hp?s=%5EGSPC+Historical+Prices
 
 """
 
@@ -24,8 +25,9 @@ from sklearn.ensemble import RandomForestClassifier
 class IPO(object):
     def __init__(self):
         self.__ipo_csv_path = "{}/ipos.csv".format(Path.dataset_path)
-        self.__sp_csv_path = "{}/spy.csv".format(Path.dataset_path)
+        self.__sp_csv_path = "{}/SP2000.csv".format(Path.dataset_path)
         self.__ipos = pd.read_csv(self.__ipo_csv_path)
+        # 重新上网找一下 sp 从2000到2010的数据 标普指数
         self.__sp = pd.read_csv(self.__sp_csv_path)
 
         self.__clf = None
@@ -35,7 +37,11 @@ class IPO(object):
         self.__y_test = None
 
     def rename_col(self):
-        pass
+        self.__ipos.rename({
+            "Trade Date": "Date",
+            "$ Change Close": "$ Chg Close",
+            '$ Change Opening': '$ Chg Opening',
+        }, axis='columns', inplace=True)
 
     def format_type(self):
         ipos = self.__ipos
@@ -61,21 +67,63 @@ class IPO(object):
         self.__ipos.loc[1264, 'Opening Price'] = 11.26
 
     def remove_error_date(self):
-        self.__ipos.loc[1175, 'Date'] = pd.to_datetime('2009-08-12')
-        self.__ipos.loc[1865, 'Date'] = pd.to_datetime('2013-11-06')
-        self.__ipos.loc[2251, 'Date'] = pd.to_datetime('2015-05-21')
-        self.__ipos.loc[2252, 'Date'] = pd.to_datetime('2015-05-21')
+        ipos = self.__ipos
+        error_date = ["2009-08-01", "2013-11-16", "2015-02-21"]
+        error_index = [ipos[ipos["Date"] == date].index for date in error_date]
+        new_error_index = []
+        [new_error_index.extend(i) for i in error_index]
+        self.__ipos.loc[new_error_index[0], 'Date'] = pd.to_datetime('2009-08-12')
+        self.__ipos.loc[new_error_index[1], 'Date'] = pd.to_datetime('2013-11-06')
+        self.__ipos.loc[new_error_index[2], 'Date'] = pd.to_datetime('2015-05-21')
+        self.__ipos.loc[new_error_index[3], 'Date'] = pd.to_datetime('2015-05-21')
+
+    def add_sp_feature(self):
+        self.__ipos['SP Week Change'] = self.__ipos['Date'].map(self.get_week_chg)
+        self.__ipos['SP Close to Open Chg Pct'] = self.__ipos['Date'].map(self.get_cto_chg)
+
+    def add_more_feature(self):
+        ipos = self.__ipos
+        ipos['Total Underwriters'] = ipos['Lead/Joint-Lead Mangager'].map(lambda x: len(x.split('/')))
+        # 周 月
+        ipos['Week Day'] = ipos['Date'].dt.dayofweek.map(
+            {0: 'Mon', 1: 'Tues', 2: 'Wed', 3: 'Thurs', 4: 'Fri', 5: 'Sat', 6: 'Sun'})
+        ipos['Month'] = ipos['Date'].map(lambda x: x.month)
+        ipos['Month'] = ipos['Month'].map(
+            {1: 'Jan', 2: 'Feb', 3: 'Mar', 4: 'Apr', 5: 'May', 6: 'Jun', 7: 'Jul', 8: 'Aug', 9: 'Sep', 10: 'Oct',
+             11: 'Nov', 12: 'Dec'})
+
+        # 感觉加过了？
+        ipos['Gap Open Pct'] = (ipos['$ Chg Opening'].astype('float') / ipos['Opening Price'].astype('float')) * 100
+        # 和 '% Chg Open to Close' 完全相同
+        ipos['Open to Close Pct'] = (ipos['$ Chg Close'].astype('float') - ipos['$ Chg Opening'].astype('float')) / \
+                                    ipos['Opening Price'].astype('float') * 100
+        self.__ipos = ipos
+        pass
+
+    def process_1(self):
+        # ipos = self.__ipos
+        self.rename_col()
+        self.__ipos.replace('N/C', 0, inplace=True)
+        # 删掉多余的行
+        self.__ipos = self.__ipos.iloc[331:2335 + 331]
+        self.format_type()
+        self.add_feature()
+        self.remove_error_date()
+        self.add_sp_feature()
+        self.format_name()
 
     def process_data(self):
-        # todo 删掉多余的行
         self.rename_col()
         ipos = self.__ipos
-        ipos.replace('N/C', 0, inplace=True)
+        # todo 删掉多余的行
+        # ipos = ipos.iloc[]
+        ipos.replace('N/C', 0, inplace=True)  # 直接修改了 self.__ipos
+
         self.format_type()
         self.add_feature()
 
         # 特征提取
-        self.remove_error_date()
+        # self.remove_error_date()
         ipos['SP Week Change'] = ipos['Date'].map(self.get_week_chg)
         ipos['SP Close to Open Chg Pct'] = ipos['Date'].map(self.get_cto_chg)
 
@@ -116,8 +164,8 @@ class IPO(object):
             chg = (sp.iloc[day_ago_idx]['Close'] - sp.iloc[week_ago_idx]['Close']) / \
                   (sp.iloc[week_ago_idx]['Close'])
             return chg * 100
-        except:
-            print('error', ipo_dt.date())
+        except Exception as e:
+            print('error1', ipo_dt.date(), e)
 
     def train_test_split(self):
         ipos = self.__ipos
@@ -165,10 +213,10 @@ class IPO(object):
         logger("rf", ipos[(ipos['Date'] >= '2015-01-01')]['$ Chg Open to Close'].sum())
 
     def main(self):
-        self.process_data()
-        self.train_test_split()
-        self.train()
-        self.test()
+        # self.process_data()
+        # self.train_test_split()
+        # self.train()
+        # self.test()
         pass
 
     def format_name(self):
@@ -244,8 +292,8 @@ class IPO(object):
         self.__ipos = ipos
 
 
-ipo = IPO()
-ipo.process_data()
+# ipo = IPO()
+# ipo.process_data()
 # ipo.main()
 
 if __name__ == '__main__':
