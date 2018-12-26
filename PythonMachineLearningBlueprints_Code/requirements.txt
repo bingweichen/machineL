@@ -12,3 +12,4 @@ twilio==6.21.0
 matplotlib
 patsy
 statsmodels
+xlrd
